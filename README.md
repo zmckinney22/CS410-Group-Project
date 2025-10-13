@@ -1,2 +1,7 @@
-# CS410-Group-Project
-CS  410 Project created by Jaejung Ha, Hsinya Hsu, Shubhi Bhatia, Nick King, and Zachary McKinney
+# Reddit Sentiment Analysis - CS410-Group-Project
+## Authors
+- Jaejung Ha
+- Hsinya Hsu
+- Shubhi Bhatia
+- Nick King
+- Zachary McKinney
