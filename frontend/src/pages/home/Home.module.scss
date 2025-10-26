@@ -1,0 +1,74 @@
+.home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+
+  .searchInput {
+    width: 40%;
+    padding: 0.5rem;
+    font-size: 1rem;
+    border: 2px solid #ccc;
+    border-radius: 15px;
+    transition: border 0.3s ease;
+    background: transparent;
+
+    &::placeholder {
+      text-align: center;
+    }
+
+    &:hover {
+      border: 2px solid;
+      animation: rainbow 3s linear infinite;
+    }
+
+    
+  }
+
+    .analyzeButton {
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+        border: none;
+        outline: none;
+        border-radius: 5px;
+        margin: 1rem;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+
+        &:hover {
+            background-color: #0056b3;
+        }
+
+        &:active {
+            transform: scale(1.1);
+        }
+    }
+}
+
+@keyframes rainbow {
+  0%,
+  100% {
+    border-color: red;
+  }
+  14% {
+    border-color: orange;
+  }
+  28% {
+    border-color: yellow;
+  }
+  42% {
+    border-color: green;
+  }
+  57% {
+    border-color: blue;
+  }
+  71% {
+    border-color: indigo;
+  }
+  85% {
+    border-color: violet;
+  }
+}
