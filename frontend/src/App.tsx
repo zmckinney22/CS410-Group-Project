@@ -6,7 +6,7 @@ import Navbar from "./components/navbar/Navbar";
 function App() {
   return (
     <div className={styles.app}>
-      <Router>
+      <Router basename="/CS410-Group-Project">
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
