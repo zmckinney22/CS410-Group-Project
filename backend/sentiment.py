@@ -227,6 +227,126 @@ class SentimentAnalyzer:
                     elif sentiment == "negative":
                         self.negative_words.add(line.lower())
 
+def analyze_post_and_comments(data: dict) -> dict:
+    analyzer = SentimentAnalyzer()
+    post = data.get("post", {})
+    comments = data.get("comments", [])
+
+    # Analyze sentiment for each comment
+    comment_sentiments = []
+    for comment in comments:
+        body = comment.get("body", "")
+        sentiment_label = analyzer.analyze_sentiment(body)
+        comment_sentiments.append({
+            "comment_id": comment.get("id", ""),
+            "body": body,
+            "sentiment": sentiment_label.value,
+            "score": comment.get("score", 0)
+        })
+
+    # Sentiment group counts
+    sentiment_counts = {
+        "positive": 0,
+        "negative": 0,
+        "neutral": 0,
+        "mixed": 0
+    }
+
+    for com_sent in comment_sentiments:
+        sentiment_counts[com_sent["sentiment"]] += 1
+
+    total_comments = len(comment_sentiments)
+
+    # Calculate groups for result
+    groups = []
+    for label, count in sentiment_counts.items():
+        proportion = count / total_comments if total_comments > 0 else 0.0
+        groups.append({
+            "label": label,
+            "count": count,
+            "proportion": proportion
+        })
+
+    # Overall sentiment
+    if total_comments == 0:
+        overall_sentiment = "neutral"
+    else:
+        max_sentiment = max(sentiment_counts.items(), key=lambda x: x[1])
+        overall_sentiment = max_sentiment[0]
+
+    # Calculate controversy
+    pos_count = sentiment_counts["positive"]
+    neg_count = sentiment_counts["negative"]
+    controversy = 0.0
+    if total_comments > 0:
+        controversy = (pos_count * neg_count) / (total_comments ** 2)
+
+    # Extract keywords from comments
+    keywords = extract_keywords(comments, analyzer)
+
+    # Find notable comments
+    notable_comments = find_notable_comments(comment_sentiments)
+
+    return {
+        "post_title": post.get("title", ""),
+        "overall_sentiment": overall_sentiment,
+        "groups": groups,
+        "controversy": controversy,
+        "keywords": keywords,
+        "notable_comments": notable_comments
+    }
+
+
+def extract_keywords(comments: list, analyzer: SentimentAnalyzer, top_n: int = 10) -> list:
+    # Extract top keywords from comments for result
+    word_freq = {}
+
+    for comment in comments:
+        body = comment.get("body", "")
+        cleaned = analyzer.clean_english_text(body)
+        words = cleaned.split()
+
+        for word in words:
+            if len(word) > 3:
+                word_freq[word] = word_freq.get(word, 0) + 1
+
+    # Sort by frequency and return top N
+    sorted_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+    return [word for word, freq in sorted_words[:top_n]]
+
+
+def find_notable_comments(comment_sentiments: list) -> list:
+    notable_comments = []
+    
+    sentiment_labels = {
+        "positive": [],
+        "negative": [],
+        "neutral": [],
+        "mixed": []
+    }
+
+    # Sort comments into sentiments
+    for sentiment in comment_sentiments:
+        sentiment_labels[sentiment["sentiment"]].append(sentiment)
+
+    # Get top comment from each sentiment by score
+    for sentiment_label, comments in sentiment_labels.items():
+        if comments:
+            sorted_comments = sorted(comments, key=lambda x: x["score"], reverse=True)
+            top_comment = sorted_comments[0]
+
+            # Create snippet of the first 150 chars
+            body = top_comment["body"]
+            snippet = body[:150] + "..." if len(body) > 150 else body
+
+            notable_comments.append({
+                "comment_id": top_comment["comment_id"],
+                "snippet": snippet,
+                "sentiment": sentiment_label,
+                "score": top_comment["score"]
+            })
+
+    return notable_comments
 
 if __name__ == "__main__":
     analyzer = SentimentAnalyzer()

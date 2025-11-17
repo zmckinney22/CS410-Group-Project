@@ -72,6 +72,39 @@ def save_raw_data(data, filename='raw_reddit_data.json'):
         json.dump(data, f, indent=2, ensure_ascii=False)
     print(f"Saved {len(data)} posts to {filepath}")
 
+
+def fetch_post_and_comments(url: str, max_comments: int = 500) -> dict:
+    # Fetches a post by URL and returns dict with post and comments
+    
+    reddit = authenticate_reddit()
+    subm = reddit.submission(url=url)
+    subm.comments.replace_more(limit=0)
+
+    post = {
+        "post_id": subm.id,
+        "subreddit": str(subm.subreddit),
+        "title": clean_text(subm.title),
+        "selftext": clean_text(subm.selftext or ""),
+        "score": int(subm.score),
+        "num_comments": int(subm.num_comments),
+        "created_utc": float(subm.created_utc),
+    }
+
+    comments = []
+    for index, comment in enumerate(subm.comments.list()):
+        if index >= max_comments:
+            break
+        body = clean_text(comment.body or "")
+        comments.append({
+            "id": comment.id,
+            "body": body,
+            "score": int(getattr(comment, "score", 0) or 0),
+            "created_utc": float(getattr(comment, "created_utc", 0.0) or 0.0),
+        })
+
+    return {"post": post, "comments": comments}
+
+
 # DATA PREPROCESSING
 
 def clean_text(text):
