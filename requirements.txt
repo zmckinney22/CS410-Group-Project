@@ -1,6 +1,5 @@
-# fastpai
 fastapi
-
+uvicorn
 praw
 pandas
 numpy
