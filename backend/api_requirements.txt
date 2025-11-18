@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+praw
+python-dotenv
+emoji==2.15.0
