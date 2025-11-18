@@ -1,5 +1,7 @@
 fastapi
 uvicorn
 praw
+pandas
+numpy
 python-dotenv
 emoji==2.15.0
