@@ -12,9 +12,9 @@ class SentimentLabel(str, Enum):
 
 class SentimentAnalyzer:
     def __init__(self, use_socialsent=True, subreddit=None, 
-                 pos_threshold=0.05, neg_threshold=-0.05,
+                 pos_threshold=0.01, neg_threshold=-0.01,
                  negation_window=2, negation_flip_weight=1.0,
-                 socialsent_weight=0.5):
+                 socialsent_weight=0.3):
         self.use_socialsent = use_socialsent
         self.subreddit = subreddit
         self.pos_threshold = pos_threshold
@@ -291,8 +291,8 @@ class SentimentAnalyzer:
             return SentimentLabel.NEUTRAL
 
         words = cleaned.split()
-        total_score = 0.0
-        sentiment_word_count = 0
+        pos_total = 0.0
+        neg_total = 0.0
 
         for i, word in enumerate(words):
             base_score = self.get_word_sentiment_score(word)
@@ -316,17 +316,17 @@ class SentimentAnalyzer:
             if negated:
                 base_score = -base_score * self.negation_flip_weight
             
-            total_score += base_score * modifier
-            sentiment_word_count += 1
+            final_score = base_score * modifier
+            if final_score > 0:
+                pos_total += final_score
+            else:
+                neg_total += final_score
 
-        if sentiment_word_count == 0:
-            return SentimentLabel.NEUTRAL
-        
-        avg_score = total_score / sentiment_word_count
+        total_sentiment = pos_total + neg_total
 
-        if avg_score >= self.pos_threshold:
+        if total_sentiment >= self.pos_threshold:
             return SentimentLabel.POSITIVE
-        elif avg_score <= self.neg_threshold:
+        elif total_sentiment <= self.neg_threshold:
             return SentimentLabel.NEGATIVE
         else:
             return SentimentLabel.NEUTRAL

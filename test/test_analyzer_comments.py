@@ -125,8 +125,8 @@ def main():
     params = {
         'use_socialsent': True,
         'socialsent_weight': 0.3,
-        'pos_threshold': 0.05,
-        'neg_threshold': -0.05,
+        'pos_threshold': 0.01,
+        'neg_threshold': -0.01,
         'negation_window': 2,
         'negation_flip_weight': 1.0
     }
