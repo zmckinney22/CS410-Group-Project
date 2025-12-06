@@ -1,37 +1,60 @@
 import os
 import re
+import json
 from enum import Enum
+from pathlib import Path
 import emoji 
 
 class SentimentLabel(str, Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative" 
     NEUTRAL = "neutral"
-    MIXED = "mixed"
 
 class SentimentAnalyzer:
-    def __init__(self):
+    def __init__(self, use_socialsent=True, subreddit=None, 
+                 pos_threshold=0.05, neg_threshold=-0.05,
+                 negation_window=2, negation_flip_weight=1.0,
+                 socialsent_weight=0.5):
+        self.use_socialsent = use_socialsent
+        self.subreddit = subreddit
+        self.pos_threshold = pos_threshold
+        self.neg_threshold = neg_threshold
+        self.negation_window = negation_window
+        self.negation_flip_weight = negation_flip_weight
+        self.socialsent_weight = socialsent_weight
+        
         self.positive_words = set()
         self.negative_words = set()
-        self.load_lexicons()
-
-        for w in ["fun", "funny", "excited", "love", "happy", "good", "cool", "amazing"]:
-            self.negative_words.discard(w)  
-            self.positive_words.add(w)
-
-        for w in ["sad", "very_sad", "angry", "bad", "disgust", "suspicious", "shock", "disappointed"]:
-            self.positive_words.discard(w)
-            self.negative_words.add(w)
-  
-        self.negation_words = {"not", "never", "no"}
+        self.socialsent_lexicon = {}
+        self.subreddit_mapping = {}
         
+        self.load_lexicons()
+        
+        self.negation_words = {
+            "not", "never", "no", "neither", "nor", "none", "nobody", 
+            "nothing", "nowhere", "hardly", "barely", "scarcely",
+            "without", "lack", "lacking"
+        }
+        
+        self.intensifiers = {
+            "very": 1.5, "extremely": 2.0, "absolutely": 1.8,
+            "really": 1.3, "incredibly": 1.8, "totally": 1.5,
+            "completely": 1.7, "utterly": 1.8, "highly": 1.4,
+            "super": 1.5, "especially": 1.3
+        }
+        
+        self.diminishers = {
+            "slightly": 0.5, "somewhat": 0.6, "barely": 0.3,
+            "hardly": 0.3, "kinda": 0.5, "sorta": 0.5,
+            "little": 0.5, "bit": 0.6, "mildly": 0.5
+        }
     
     def load_lexicons(self):
         try:
-            current_dir = os.path.dirname(__file__)
-            project_root = os.path.dirname(current_dir)
-            lex_dir = os.path.join(project_root, 'data', 'opinion-lexicon-English')
-            
+            current_dir = Path(__file__).parent
+            project_root = current_dir.parent
+            lex_dir = project_root / 'data' / 'opinion-lexicon-English'
+
             # Positive words
             pos_file = os.path.join(lex_dir, 'positive-words.txt')
             with open(pos_file, 'r', encoding='utf-8') as f:
@@ -55,11 +78,66 @@ class SentimentAnalyzer:
                 self.positive_words -= overlap
                 self.negative_words -= overlap
 
-            print(f"Loaded {len(self.positive_words)} positive and {len(self.negative_words)} negative words")
+            # Add Reddit-specific sentiment words
+            for w in ["fun", "funny", "excited", "love", "happy", "good", "cool", "amazing"]:
+                self.negative_words.discard(w)  
+                self.positive_words.add(w)
+
+            for w in ["sad", "very_sad", "angry", "bad", "disgust", "suspicious", "shock", "disappointed"]:
+                self.positive_words.discard(w)
+                self.negative_words.add(w)
+
+            print(f"Loaded Liu & Hu: {len(self.positive_words)} positive, {len(self.negative_words)} negative words")
+
+            if self.use_socialsent:
+                self.load_socialsent_lexicons()
 
         except Exception as e:
             print(f"Error loading lexicons: {e}")
             raise
+
+    def load_socialsent_lexicons(self):
+        try:
+            current_dir = Path(__file__).parent
+            project_root = current_dir.parent
+            socialsent_dir = project_root / 'data' / 'socialsent'
+            
+            if not socialsent_dir.exists():
+                print("SocialSent directory not found. Run setup_socialsent.py first.")
+                self.use_socialsent = False
+                return
+            
+            mapping_file = socialsent_dir / 'subreddit_mapping.json'
+            if mapping_file.exists():
+                with open(mapping_file, 'r') as f:
+                    self.subreddit_mapping = json.load(f)
+            
+            # Determine which lexicon to use
+            lexicon_name = None
+            if self.subreddit and self.subreddit in self.subreddit_mapping:
+                lexicon_name = self.subreddit_mapping[self.subreddit]
+            else:
+                lexicon_name = 'reddit_general'
+            
+            lexicon_file = socialsent_dir / f'{lexicon_name}.json'
+            if lexicon_file.exists():
+                with open(lexicon_file, 'r') as f:
+                    self.socialsent_lexicon = json.load(f)
+                print(f"Loaded SocialSent lexicon '{lexicon_name}': {len(self.socialsent_lexicon)} words")
+            else:
+                # Fallback to general lexicon
+                general_file = socialsent_dir / 'reddit_general.json'
+                if general_file.exists():
+                    with open(general_file, 'r') as f:
+                        self.socialsent_lexicon = json.load(f)
+                    print(f"Loaded SocialSent general lexicon: {len(self.socialsent_lexicon)} words")
+                else:
+                    print("No SocialSent lexicons found. Using Liu & Hu only.")
+                    self.use_socialsent = False
+                    
+        except Exception as e:
+            print(f"Error loading SocialSent: {e}")
+            self.use_socialsent = False
 
     def clean_english_text(self, text: str) -> str:
         if not text:
@@ -174,13 +252,38 @@ class SentimentAnalyzer:
         
         # Remove special characters 
         text = re.sub(r'[^a-zA-Z_\s]', '', text)
-
-        text = re.sub(r'\bbe right back\b', 'coming_back', text)
         
         # Remove extra whitespace
         text = re.sub(r'\s+', ' ', text).strip()
         
         return text
+    
+    def get_word_sentiment_score(self, word: str) -> float:
+        liu_hu_score = 0.0
+        socialsent_score = 0.0
+        
+        # Get Liu & Hu score (binary: +1, -1, or 0)
+        if word in self.positive_words:
+            liu_hu_score = 1.0
+        elif word in self.negative_words:
+            liu_hu_score = -1.0
+        
+        # Get SocialSent score (continuous: -1 to +1)
+        if self.use_socialsent and word in self.socialsent_lexicon:
+            socialsent_score = self.socialsent_lexicon[word]
+        
+        # Combine scores
+        if not self.use_socialsent:
+            return liu_hu_score
+        
+        if liu_hu_score != 0 and socialsent_score != 0:
+            return (1 - self.socialsent_weight) * liu_hu_score + self.socialsent_weight * socialsent_score
+        elif liu_hu_score != 0:
+            return liu_hu_score
+        elif socialsent_score != 0:
+            return socialsent_score
+        else:
+            return 0.0
     
     def analyze_sentiment(self, text: str):
         cleaned = self.clean_english_text(text)
@@ -188,47 +291,51 @@ class SentimentAnalyzer:
             return SentimentLabel.NEUTRAL
 
         words = cleaned.split()
-        pos_count = 0
-        neg_count = 0
-        window = 2
+        total_score = 0.0
+        sentiment_word_count = 0
 
-        for i, w in enumerate(words):
-            if w not in self.positive_words and w not in self.negative_words:
+        for i, word in enumerate(words):
+            base_score = self.get_word_sentiment_score(word)
+            
+            if base_score == 0:
                 continue
-            flipped = any(prev_word in self.negation_words 
-                        for prev_word in words[max(0, i-window):i])
-            if w in self.positive_words:
-                if flipped:
-                    neg_count += 1
-                else:
-                    pos_count += 1
-            elif w in self.negative_words:
-                if flipped:
-                    pos_count += 1  
-                else:
-                    neg_count += 1  
+            
+            modifier = 1.0            
+            for j in range(max(0, i-2), i):
+                prev_word = words[j]
+                if prev_word in self.intensifiers:
+                    modifier *= self.intensifiers[prev_word]
+                elif prev_word in self.diminishers:
+                    modifier *= self.diminishers[prev_word]
+            
+            negated = any(
+                words[j] in self.negation_words 
+                for j in range(max(0, i-self.negation_window), i)
+            )
+            
+            if negated:
+                base_score = -base_score * self.negation_flip_weight
+            
+            total_score += base_score * modifier
+            sentiment_word_count += 1
 
-        if pos_count > 0 and neg_count > 0:
-            return SentimentLabel.MIXED
-        elif pos_count > neg_count:
+        if sentiment_word_count == 0:
+            return SentimentLabel.NEUTRAL
+        
+        avg_score = total_score / sentiment_word_count
+
+        if avg_score >= self.pos_threshold:
             return SentimentLabel.POSITIVE
-        elif neg_count > pos_count:
+        elif avg_score <= self.neg_threshold:
             return SentimentLabel.NEGATIVE
         else:
-            return SentimentLabel.NEUTRAL           
-      
-    def load_reddit_lexicon(self, file_path, sentiment="positive"):
-        with open(file_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith(';'):
-                    if sentiment == "positive":
-                        self.positive_words.add(line.lower())
-                    elif sentiment == "negative":
-                        self.negative_words.add(line.lower())
+            return SentimentLabel.NEUTRAL
 
-def analyze_post_and_comments(data: dict) -> dict:
-    analyzer = SentimentAnalyzer()
+
+def analyze_post_and_comments(data: dict, subreddit: str = None, 
+                              analyzer_params: dict = None) -> dict:
+    params = analyzer_params or {}
+    analyzer = SentimentAnalyzer(subreddit=subreddit, **params)
     post = data.get("post", {})
     comments = data.get("comments", [])
 
@@ -248,8 +355,7 @@ def analyze_post_and_comments(data: dict) -> dict:
     sentiment_counts = {
         "positive": 0,
         "negative": 0,
-        "neutral": 0,
-        "mixed": 0
+        "neutral": 0
     }
 
     for com_sent in comment_sentiments:
@@ -321,8 +427,7 @@ def find_notable_comments(comment_sentiments: list) -> list:
     sentiment_labels = {
         "positive": [],
         "negative": [],
-        "neutral": [],
-        "mixed": []
+        "neutral": []
     }
 
     # Sort comments into sentiments

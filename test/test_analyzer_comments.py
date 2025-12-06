@@ -1,97 +1,178 @@
+import json
+import csv
+from pathlib import Path
 import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+sys.path.append(str(Path(__file__).parent.parent))
 from backend.sentiment import SentimentAnalyzer
 
-import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-import numpy as np
+def load_reddit_data(comments_file, posts_file):
+    post_to_subreddit = {}
+    with open(posts_file, 'r', encoding='utf-8') as f:
+        first_line = f.readline()
+        f.seek(0)
+        delimiter = '\t' if '\t' in first_line else ','
+        reader = csv.DictReader(f, delimiter=delimiter)
+        for row in reader:
+            post_to_subreddit[row['post_id']] = row['subreddit']
+    
+    examples = []
+    with open(comments_file, 'r', encoding='utf-8') as f:
+        first_line = f.readline()
+        f.seek(0)
+        delimiter = '\t' if '\t' in first_line else ','
+        reader = csv.DictReader(f, delimiter=delimiter)
+        
+        for row in reader:
+            text = row.get('text', '').strip()
+            label = row.get('manual_label', '').strip().lower()
+            
+            if not text or label not in ['positive', 'negative', 'neutral']:
+                continue
+            
+            examples.append({
+                'comment_id': row.get('comment_id', ''),
+                'text': text,
+                'label': label,
+                'subreddit': post_to_subreddit.get(row.get('post_id', ''), None),
+                'post_id': row.get('post_id', '')
+            })
+    
+    return examples
 
-# Load manually labeled data
-labeled_df = pd.read_csv('data/comments_manually_labeled.csv')
 
-print("="*80)
-print("SENTIMENT ANALYZER EVALUATION - MANUAL LABELS")
-print("="*80)
-print(f"\nTotal comments: {len(labeled_df)}")
-print(f"Label distribution:")
-print(labeled_df['manual_label'].value_counts())
-print()
+def evaluate_dataset(examples, params, use_subreddit=False):
+    analyzer_cache = {}
+    default_analyzer = SentimentAnalyzer(**params)
+    
+    confusion = {
+        'positive': {'positive': 0, 'negative': 0, 'neutral': 0},
+        'negative': {'positive': 0, 'negative': 0, 'neutral': 0},
+        'neutral': {'positive': 0, 'negative': 0, 'neutral': 0}
+    }
+    
+    for item in examples:
+        subreddit = item.get('subreddit')
+        
+        if use_subreddit and subreddit:
+            if subreddit not in analyzer_cache:
+                analyzer_cache[subreddit] = SentimentAnalyzer(subreddit=subreddit, **params)
+            predicted = analyzer_cache[subreddit].analyze_sentiment(item['text']).value
+        else:
+            predicted = default_analyzer.analyze_sentiment(item['text']).value
+        
+        confusion[item['label']][predicted] += 1
+    
+    total = len(examples)
+    correct = sum(confusion[label][label] for label in confusion)
+    accuracy = correct / total
+    
+    metrics = {'accuracy': accuracy, 'classes': {}}
+    
+    for label in ['positive', 'negative', 'neutral']:
+        tp = confusion[label][label]
+        fp = sum(confusion[other][label] for other in confusion if other != label)
+        fn = sum(confusion[label][other] for other in confusion[label] if other != label)
+        
+        p = tp / (tp + fp) if (tp + fp) > 0 else 0
+        r = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1 = 2 * (p * r) / (p + r) if (p + r) > 0 else 0
+        
+        metrics['classes'][label] = {'precision': p, 'recall': r, 'f1': f1}
+    
+    metrics['macro_f1'] = sum(m['f1'] for m in metrics['classes'].values()) / 3
+    return metrics
 
-# Initialize analyzer
-analyzer = SentimentAnalyzer()
 
-# Get predictions
-predictions = []
-for text in labeled_df['text']:
-    try:
-        pred = analyzer.analyze_sentiment(text)
-        predictions.append(pred.value)
-    except Exception as e:
-        print(f"Error analyzing: {text[:50]}... - {e}")
-        predictions.append('neutral')  # Default to neutral on error
+def evaluate_sst2(sst2_file, params):
+    examples = []
+    with open(sst2_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            parts = line.strip().split('\t')
+            if len(parts) == 2:
+                examples.append({
+                    'text': parts[0],
+                    'label': 'positive' if parts[1] == '1' else 'negative'
+                })
+    
+    return evaluate_dataset(examples, params)
 
-labeled_df['predicted'] = predictions
 
-# Calculate overall accuracy
-accuracy = accuracy_score(labeled_df['manual_label'], labeled_df['predicted'])
+def evaluate_sentiment140(sent140_file, params, sample_size=10000):
+    examples = []
+    with open(sent140_file, 'r', encoding='latin-1', errors='ignore') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) >= 6:
+                polarity = row[0]
+                if polarity in ['0', '4']:
+                    examples.append({
+                        'text': row[5],
+                        'label': 'negative' if polarity == '0' else 'positive'
+                    })
+    
+    if sample_size and sample_size < len(examples):
+        import random
+        random.seed(42)
+        examples = random.sample(examples, sample_size)
+    
+    return evaluate_dataset(examples, params)
 
-print("="*80)
-print(f"OVERALL ACCURACY: {accuracy:.2%}")
-print("="*80)
 
-# Classification report
-print("\nDetailed Classification Report:")
-print(classification_report(labeled_df['manual_label'], labeled_df['predicted'], 
-                          target_names=['positive', 'negative', 'neutral', 'mixed'],
-                          zero_division=0))
+def main():
+    data_dir = Path(__file__).parent.parent / 'data'
+    
+    params = {
+        'use_socialsent': True,
+        'socialsent_weight': 0.3,
+        'pos_threshold': 0.05,
+        'neg_threshold': -0.05,
+        'negation_window': 2,
+        'negation_flip_weight': 1.0
+    }
+    
+    results = {}
+    
+    # Reddit Manual
+    comments_file = data_dir / 'comments_manually_labeled.csv'
+    posts_file = data_dir / 'posts_preprocessed.csv'
+    if comments_file.exists() and posts_file.exists():
+        examples = load_reddit_data(str(comments_file), str(posts_file))
+        results['reddit_manual'] = evaluate_dataset(examples, params, use_subreddit=True)
+    
+    # SST-2
+    sst2_file = data_dir / 'sst2' / 'dev.tsv'
+    if sst2_file.exists():
+        results['sst2'] = evaluate_sst2(str(sst2_file), params)
+    
+    # Sentiment140
+    sent140_file = data_dir / 'sentiment140' / 'training.1600000.processed.noemoticon.csv'
+    if sent140_file.exists():
+        results['sentiment140'] = evaluate_sentiment140(str(sent140_file), params)
+    
+    print("\nEVALUATION RESULTS with SocialSent weight = 0.3")
+    print(f"{'Dataset':<25} {'Accuracy':>12} {'Macro F1':>12} {'Pos F1':>12} {'Neg F1':>12} {'Neu F1':>12}")
+    print("-" * 100)
+    
+    dataset_names = {
+        'reddit_manual': 'Reddit Manual',
+        'sst2': 'SST-2',
+        'sentiment140': 'Sentiment140'
+    }
+    
+    for dataset, metrics in results.items():
+        name = dataset_names.get(dataset, dataset)
+        pos_f1 = metrics['classes'].get('positive', {}).get('f1', 0.0)
+        neg_f1 = metrics['classes'].get('negative', {}).get('f1', 0.0)
+        neu_f1 = metrics['classes'].get('neutral', {}).get('f1', 0.0)
+        
+        print(f"{name:<25} {metrics['accuracy']:>12.4f} {metrics['macro_f1']:>12.4f} "
+              f"{pos_f1:>12.4f} {neg_f1:>12.4f} {neu_f1:>12.4f}")
+        
+    with open(data_dir / 'evaluation_results.json', 'w') as f:
+        json.dump({'configuration': params, 'results': results}, f, indent=2)
+    
+    print(f"\nResults saved to: {data_dir / 'evaluation_results.json'}")
 
-# Confusion matrix
-print("\nConfusion Matrix:")
-print("(Rows = Actual, Columns = Predicted)")
-cm = confusion_matrix(labeled_df['manual_label'], labeled_df['predicted'],
-                     labels=['positive', 'negative', 'neutral', 'mixed'])
-cm_df = pd.DataFrame(cm, 
-                     index=['Actual: Pos', 'Actual: Neg', 'Actual: Neu', 'Actual: Mix'],
-                     columns=['Pred: Pos', 'Pred: Neg', 'Pred: Neu', 'Pred: Mix'])
-print(cm_df)
-
-# Show some misclassified examples
-print("\n" + "="*80)
-print("SAMPLE MISCLASSIFICATIONS")
-print("="*80)
-misclassified = labeled_df[labeled_df['manual_label'] != labeled_df['predicted']]
-if len(misclassified) > 0:
-    sample = misclassified.sample(min(10, len(misclassified)))
-    for idx, row in sample.iterrows():
-        print(f"\nText: {row['text'][:80]}...")
-        print(f"  Manual: {row['manual_label']}, Predicted: {row['predicted']}")
-else:
-    print("No misclassifications found!")
-
-# Show some correctly classified examples
-print("\n" + "="*80)
-print("SAMPLE CORRECT CLASSIFICATIONS")
-print("="*80)
-correct = labeled_df[labeled_df['manual_label'] == labeled_df['predicted']]
-if len(correct) > 0:
-    sample = correct.sample(min(5, len(correct)))
-    for idx, row in sample.iterrows():
-        print(f"\nText: {row['text'][:80]}...")
-        print(f"  Both labeled as: {row['manual_label']} ✓")
-
-# Per-label accuracy breakdown
-print("\n" + "="*80)
-print("ACCURACY BY SENTIMENT LABEL")
-print("="*80)
-for label in ['positive', 'negative', 'neutral', 'mixed']:
-    subset = labeled_df[labeled_df['manual_label'] == label]
-    if len(subset) > 0:
-        label_acc = (subset['manual_label'] == subset['predicted']).mean()
-        print(f"{label.capitalize():10s}: {label_acc:6.2%} ({len(subset)} samples)")
-
-# Save results
-output_file = 'data/manual_evaluation_results.csv'
-labeled_df.to_csv(output_file, index=False)
-print(f"\n✓ Saved detailed results to {output_file}")
-print("="*80)
+if __name__ == "__main__":
+    main()

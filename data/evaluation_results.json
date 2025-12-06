@@ -1,0 +1,75 @@
+{
+  "configuration": {
+    "use_socialsent": true,
+    "socialsent_weight": 0.3,
+    "pos_threshold": 0.05,
+    "neg_threshold": -0.05,
+    "negation_window": 2,
+    "negation_flip_weight": 1.0
+  },
+  "results": {
+    "reddit_manual": {
+      "accuracy": 0.6161616161616161,
+      "classes": {
+        "positive": {
+          "precision": 0.5135135135135135,
+          "recall": 0.6785714285714286,
+          "f1": 0.5846153846153848
+        },
+        "negative": {
+          "precision": 0.7551020408163265,
+          "recall": 0.6981132075471698,
+          "f1": 0.7254901960784315
+        },
+        "neutral": {
+          "precision": 0.38461538461538464,
+          "recall": 0.2777777777777778,
+          "f1": 0.3225806451612903
+        }
+      },
+      "macro_f1": 0.5442287419517021
+    },
+    "sst2": {
+      "accuracy": 0.6399082568807339,
+      "classes": {
+        "positive": {
+          "precision": 0.7827380952380952,
+          "recall": 0.5923423423423423,
+          "f1": 0.6743589743589743
+        },
+        "negative": {
+          "precision": 0.667420814479638,
+          "recall": 0.6892523364485982,
+          "f1": 0.67816091954023
+        },
+        "neutral": {
+          "precision": 0.0,
+          "recall": 0,
+          "f1": 0
+        }
+      },
+      "macro_f1": 0.4508399646330681
+    },
+    "sentiment140": {
+      "accuracy": 0.5691,
+      "classes": {
+        "positive": {
+          "precision": 0.6739293764087152,
+          "recall": 0.5282685512367491,
+          "f1": 0.5922746781115878
+        },
+        "negative": {
+          "precision": 0.6175380815150268,
+          "recall": 0.6114961271911945,
+          "f1": 0.6145022531749283
+        },
+        "neutral": {
+          "precision": 0.0,
+          "recall": 0,
+          "f1": 0
+        }
+      },
+      "macro_f1": 0.4022589770955054
+    }
+  }
+}
