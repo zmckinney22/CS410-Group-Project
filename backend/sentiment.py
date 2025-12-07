@@ -298,7 +298,7 @@ class SentimentAnalyzer:
         pos_total = 0.0
         neg_total = 0.0
 
-        for i, word in enumerate(words):
+        for i, word in enumerate(filtered_words):
             base_score = self.get_word_sentiment_score(word)
             
             if base_score == 0:
@@ -307,7 +307,7 @@ class SentimentAnalyzer:
             modifier = 1.0            
             for j in range(max(0, i-2), i):
                 if j < len(filtered_words):
-                    prev_word = words[j]
+                    prev_word = filtered_words[j] 
                     if prev_word in self.intensifiers:
                         modifier *= self.intensifiers[prev_word]
                     elif prev_word in self.diminishers:
@@ -328,6 +328,9 @@ class SentimentAnalyzer:
                 neg_total += final_score
 
         total_sentiment = pos_total + neg_total
+
+        if pos_total > 0 and neg_total > 0 and abs(total_sentiment) < 0.1:
+            return SentimentLabel.MIXED 
 
         if total_sentiment >= self.pos_threshold:
             return SentimentLabel.POSITIVE
@@ -432,7 +435,8 @@ def find_notable_comments(comment_sentiments: list) -> list:
     sentiment_labels = {
         "positive": [],
         "negative": [],
-        "neutral": []
+        "neutral": [],
+        "mixed": []
     }
 
     # Sort comments into sentiments
