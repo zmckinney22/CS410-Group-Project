@@ -27,7 +27,7 @@ def load_reddit_data(comments_file, posts_file):
             text = row.get('text', '').strip()
             label = row.get('manual_label', '').strip().lower()
             
-            if not text or label not in ['positive', 'negative', 'neutral']:
+            if not text or label not in ['positive', 'negative', 'neutral', 'mixed']:
                 continue
             
             examples.append({
@@ -46,9 +46,10 @@ def evaluate_dataset(examples, params, use_subreddit=False):
     default_analyzer = SentimentAnalyzer(**params)
     
     confusion = {
-        'positive': {'positive': 0, 'negative': 0, 'neutral': 0},
-        'negative': {'positive': 0, 'negative': 0, 'neutral': 0},
-        'neutral': {'positive': 0, 'negative': 0, 'neutral': 0}
+        'positive': {'positive': 0, 'negative': 0, 'neutral': 0, 'mixed': 0},
+        'negative': {'positive': 0, 'negative': 0, 'neutral': 0, 'mixed': 0},
+        'neutral': {'positive': 0, 'negative': 0, 'neutral': 0, 'mixed': 0},
+        'mixed': {'positive': 0, 'negative': 0, 'neutral': 0, 'mixed': 0} 
     }
     
     for item in examples:
@@ -69,7 +70,7 @@ def evaluate_dataset(examples, params, use_subreddit=False):
     
     metrics = {'accuracy': accuracy, 'classes': {}}
     
-    for label in ['positive', 'negative', 'neutral']:
+    for label in ['positive', 'negative', 'neutral', 'mixed']:
         tp = confusion[label][label]
         fp = sum(confusion[other][label] for other in confusion if other != label)
         fn = sum(confusion[label][other] for other in confusion[label] if other != label)
@@ -80,7 +81,7 @@ def evaluate_dataset(examples, params, use_subreddit=False):
         
         metrics['classes'][label] = {'precision': p, 'recall': r, 'f1': f1}
     
-    metrics['macro_f1'] = sum(m['f1'] for m in metrics['classes'].values()) / 3
+    metrics['pos_neg_f1'] = (metrics['classes']['positive']['f1'] + metrics['classes']['negative']['f1']) / 2
     return metrics
 
 
@@ -151,7 +152,7 @@ def main():
         results['sentiment140'] = evaluate_sentiment140(str(sent140_file), params)
     
     print("\nEVALUATION RESULTS with SocialSent weight = 0.3")
-    print(f"{'Dataset':<25} {'Accuracy':>12} {'Macro F1':>12} {'Pos F1':>12} {'Neg F1':>12} {'Neu F1':>12}")
+    print(f"{'Dataset':<25} {'Accuracy':>12} {'Pos/Neg F1':>12} {'Pos F1':>12} {'Neg F1':>12} {'Neu F1':>12} {'Mixed F1':>12}")
     print("-" * 100)
     
     dataset_names = {
@@ -165,9 +166,11 @@ def main():
         pos_f1 = metrics['classes'].get('positive', {}).get('f1', 0.0)
         neg_f1 = metrics['classes'].get('negative', {}).get('f1', 0.0)
         neu_f1 = metrics['classes'].get('neutral', {}).get('f1', 0.0)
+
+        mixed_f1 = metrics['classes'].get('mixed', {}).get('f1', 0.0)
         
-        print(f"{name:<25} {metrics['accuracy']:>12.4f} {metrics['macro_f1']:>12.4f} "
-              f"{pos_f1:>12.4f} {neg_f1:>12.4f} {neu_f1:>12.4f}")
+        print(f"{name:<25} {metrics['accuracy']:>12.4f} {metrics['pos_neg_f1']:>12.4f} "
+              f"{pos_f1:>12.4f} {neg_f1:>12.4f} {neu_f1:>12.4f} {mixed_f1:>12.4f}")
         
     with open(data_dir / 'evaluation_results.json', 'w') as f:
         json.dump({'configuration': params, 'results': results}, f, indent=2)

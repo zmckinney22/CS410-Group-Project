@@ -25,9 +25,14 @@
           "precision": 1.0,
           "recall": 0.1111111111111111,
           "f1": 0.19999999999999998
+        },
+        "mixed": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0
         }
       },
-      "macro_f1": 0.499108734402852
+      "pos_neg_f1": 0.648663101604278
     },
     "sst2": {
       "accuracy": 0.6915137614678899,
@@ -46,9 +51,14 @@
           "precision": 0,
           "recall": 0,
           "f1": 0
+        },
+        "mixed": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0
         }
       },
-      "macro_f1": 0.4602466202466203
+      "pos_neg_f1": 0.6903699303699304
     },
     "sentiment140": {
       "accuracy": 0.6203,
@@ -67,9 +77,14 @@
           "precision": 0.0,
           "recall": 0,
           "f1": 0
+        },
+        "mixed": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0
         }
       },
-      "macro_f1": 0.41573934904161075
+      "pos_neg_f1": 0.6236090235624161
     }
   }
 }

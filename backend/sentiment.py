@@ -4,11 +4,13 @@ import json
 from enum import Enum
 from pathlib import Path
 import emoji 
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 class SentimentLabel(str, Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative" 
     NEUTRAL = "neutral"
+    MIXED = "mixed"
 
 class SentimentAnalyzer:
     def __init__(self, use_socialsent=True, subreddit=None, 
@@ -291,6 +293,7 @@ class SentimentAnalyzer:
             return SentimentLabel.NEUTRAL
 
         words = cleaned.split()
+
         pos_total = 0.0
         neg_total = 0.0
 
@@ -302,14 +305,15 @@ class SentimentAnalyzer:
             
             modifier = 1.0            
             for j in range(max(0, i-2), i):
-                prev_word = words[j]
-                if prev_word in self.intensifiers:
-                    modifier *= self.intensifiers[prev_word]
-                elif prev_word in self.diminishers:
-                    modifier *= self.diminishers[prev_word]
+                if j < len(words):
+                    prev_word = words[j] 
+                    if prev_word in self.intensifiers:
+                        modifier *= self.intensifiers[prev_word]
+                    elif prev_word in self.diminishers:
+                        modifier *= self.diminishers[prev_word]
             
             negated = any(
-                words[j] in self.negation_words 
+                words[j] in self.negation_words
                 for j in range(max(0, i-self.negation_window), i)
             )
             
@@ -323,6 +327,9 @@ class SentimentAnalyzer:
                 neg_total += final_score
 
         total_sentiment = pos_total + neg_total
+
+        if pos_total > 0 and neg_total > 0 and abs(total_sentiment) < 0.1:
+            return SentimentLabel.MIXED 
 
         if total_sentiment >= self.pos_threshold:
             return SentimentLabel.POSITIVE
@@ -355,7 +362,8 @@ def analyze_post_and_comments(data: dict, subreddit: str = None,
     sentiment_counts = {
         "positive": 0,
         "negative": 0,
-        "neutral": 0
+        "neutral": 0,
+        "mixed": 0
     }
 
     for com_sent in comment_sentiments:
@@ -413,7 +421,7 @@ def extract_keywords(comments: list, analyzer: SentimentAnalyzer, top_n: int = 1
         words = cleaned.split()
 
         for word in words:
-            if len(word) > 3:
+            if len(word) > 3 and word not in ENGLISH_STOP_WORDS:
                 word_freq[word] = word_freq.get(word, 0) + 1
 
     # Sort by frequency and return top N
@@ -427,7 +435,8 @@ def find_notable_comments(comment_sentiments: list) -> list:
     sentiment_labels = {
         "positive": [],
         "negative": [],
-        "neutral": []
+        "neutral": [],
+        "mixed": []
     }
 
     # Sort comments into sentiments
