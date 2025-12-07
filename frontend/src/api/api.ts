@@ -32,7 +32,18 @@ export const analyzeRedditUrl = async (url: string): Promise<AnalyzeResponse> =>
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.statusText}`);
+    let errorMessage = `API request failed with status ${response.status}`;
+    
+    try {
+      const errorData = await response.json();
+      if (errorData.detail) {
+        errorMessage = errorData.detail;
+      }
+    } catch {
+      // Nothing
+    }
+    
+    throw new Error(errorMessage);
   }
 
   return response.json();
