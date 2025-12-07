@@ -10,6 +10,7 @@ class SentimentLabel(str, Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative" 
     NEUTRAL = "neutral"
+    MIXED = "mixed"
 
 class SentimentAnalyzer:
     def __init__(self, use_socialsent=True, subreddit=None, 
@@ -361,7 +362,8 @@ def analyze_post_and_comments(data: dict, subreddit: str = None,
     sentiment_counts = {
         "positive": 0,
         "negative": 0,
-        "neutral": 0
+        "neutral": 0,
+        "mixed": 0
     }
 
     for com_sent in comment_sentiments:
