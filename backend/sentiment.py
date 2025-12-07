@@ -292,6 +292,9 @@ class SentimentAnalyzer:
             return SentimentLabel.NEUTRAL
 
         words = cleaned.split()
+
+        filtered_words = [word for word in words if word not in ENGLISH_STOP_WORDS]
+
         pos_total = 0.0
         neg_total = 0.0
 
@@ -303,14 +306,15 @@ class SentimentAnalyzer:
             
             modifier = 1.0            
             for j in range(max(0, i-2), i):
-                prev_word = words[j]
-                if prev_word in self.intensifiers:
-                    modifier *= self.intensifiers[prev_word]
-                elif prev_word in self.diminishers:
-                    modifier *= self.diminishers[prev_word]
+                if j < len(filtered_words):
+                    prev_word = words[j]
+                    if prev_word in self.intensifiers:
+                        modifier *= self.intensifiers[prev_word]
+                    elif prev_word in self.diminishers:
+                        modifier *= self.diminishers[prev_word]
             
             negated = any(
-                words[j] in self.negation_words 
+                filtered_words[j] in self.negation_words
                 for j in range(max(0, i-self.negation_window), i)
             )
             
