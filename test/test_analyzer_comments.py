@@ -81,7 +81,7 @@ def evaluate_dataset(examples, params, use_subreddit=False):
         
         metrics['classes'][label] = {'precision': p, 'recall': r, 'f1': f1}
     
-    metrics['macro_f1'] = sum(m['f1'] for m in metrics['classes'].values()) / 4
+    metrics['pos_neg_f1'] = (metrics['classes']['positive']['f1'] + metrics['classes']['negative']['f1']) / 2
     return metrics
 
 
@@ -152,7 +152,7 @@ def main():
         results['sentiment140'] = evaluate_sentiment140(str(sent140_file), params)
     
     print("\nEVALUATION RESULTS with SocialSent weight = 0.3")
-    print(f"{'Dataset':<25} {'Accuracy':>12} {'Macro F1':>12} {'Pos F1':>12} {'Neg F1':>12} {'Neu F1':>12} {'Mixed F1':>12}")
+    print(f"{'Dataset':<25} {'Accuracy':>12} {'Pos/Neg F1':>12} {'Pos F1':>12} {'Neg F1':>12} {'Neu F1':>12} {'Mixed F1':>12}")
     print("-" * 100)
     
     dataset_names = {
@@ -169,7 +169,7 @@ def main():
 
         mixed_f1 = metrics['classes'].get('mixed', {}).get('f1', 0.0)
         
-        print(f"{name:<25} {metrics['accuracy']:>12.4f} {metrics['macro_f1']:>12.4f} "
+        print(f"{name:<25} {metrics['accuracy']:>12.4f} {metrics['pos_neg_f1']:>12.4f} "
               f"{pos_f1:>12.4f} {neg_f1:>12.4f} {neu_f1:>12.4f} {mixed_f1:>12.4f}")
         
     with open(data_dir / 'evaluation_results.json', 'w') as f:
