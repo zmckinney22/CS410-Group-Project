@@ -6,3 +6,4 @@ numpy
 matplotlib
 python-dotenv
 emoji==2.15.0
+scikit-learn
