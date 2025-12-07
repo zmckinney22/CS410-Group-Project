@@ -4,6 +4,7 @@ import json
 from enum import Enum
 from pathlib import Path
 import emoji 
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 class SentimentLabel(str, Enum):
     POSITIVE = "positive"
@@ -418,7 +419,7 @@ def extract_keywords(comments: list, analyzer: SentimentAnalyzer, top_n: int = 1
         words = cleaned.split()
 
         for word in words:
-            if len(word) > 3:
+            if len(word) > 3 and word not in ENGLISH_STOP_WORDS:
                 word_freq[word] = word_freq.get(word, 0) + 1
 
     # Sort by frequency and return top N
