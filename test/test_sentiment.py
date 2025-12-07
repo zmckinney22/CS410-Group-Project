@@ -1,15 +1,3 @@
-"""
-Unit tests for Reddit Comment Sentiment Analysis.
-
-This test suite validates the sentiment analysis functionality including:
-- Lexicon loading and initialization
-- English text preprocessing  
-- Basic sentiment classification
-- Edge cases and error handling
-
-Author: Hsinya Hsu
-"""
-
 import os
 import sys
 
@@ -20,17 +8,14 @@ sys.path.insert(0, backend_path)
 from sentiment import SentimentAnalyzer, SentimentLabel
 
 class TestSentimentAnalyzer:
-    """Test cases for SentimentAnalyzer class."""
     
     def __init__(self):
-        """Initialize fresh analyzer for each test."""
         self.analyzer = SentimentAnalyzer()
-    
+
     def test_lexicon_loading(self):
-        """Test that sentiment lexicons are properly loaded."""
+        """Sentiment lexicons are properly loaded and contain no overlapping words."""
         print("Testing lexicon loading...")
         
-        # Verify lexicons are loaded
         assert len(self.analyzer.positive_words) > 0
         assert len(self.analyzer.negative_words) > 0
         
@@ -38,7 +23,7 @@ class TestSentimentAnalyzer:
         assert 'excellent' in self.analyzer.positive_words
         assert 'terrible' in self.analyzer.negative_words
         
-        # Ensure no overlap between positive and negative words
+        # Ensure no overlap
         common_words = self.analyzer.positive_words.intersection(self.analyzer.negative_words)
         assert len(common_words) == 0, f"Found {len(common_words)} words in both lexicons"
         
@@ -46,7 +31,7 @@ class TestSentimentAnalyzer:
         return True
     
     def test_text_cleaning_english(self):
-        """Test English text preprocessing functionality."""
+        """Test text preprocessing: lowercase, URL removal, whitespace normalization."""    
         print("Testing text cleaning...")
         
         test_cases = [
@@ -111,6 +96,7 @@ class TestSentimentAnalyzer:
                 else:
                     neg_count += 1
 
+        # Determine sentiment based on counts
         if pos_count > 0 and neg_count > 0:
             return SentimentLabel.MIXED
         elif pos_count > neg_count:
