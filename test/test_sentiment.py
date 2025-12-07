@@ -88,7 +88,7 @@ class TestSentimentAnalyzer:
     
     def analyze_sentiment(self, text: str):
         """Rule-based sentiment analysis with negation (window=3) and mixed sentiment"""
-        cleaned = self.clean_english_text(text)
+        cleaned = self.analyzer.clean_english_text(text)
         if not cleaned:
             return SentimentLabel.NEUTRAL
 
@@ -98,14 +98,14 @@ class TestSentimentAnalyzer:
         window = 3  
 
         for i, w in enumerate(words):
-            flipped = any(words[max(0, i-window):i][j] in self.negation_words 
-                        for j in range(min(window, i)))
-            if w in self.positive_words:
+            flipped = any(words[max(0, i-window):i][j] in self.analyzer.negation_words 
+                    for j in range(min(window, i)))
+            if w in self.analyzer.positive_words:
                 if flipped:
                     neg_count += 1
                 else:
                     pos_count += 1
-            elif w in self.negative_words:
+            elif w in self.analyzer.negative_words:
                 if flipped:
                     pos_count += 1
                 else:
@@ -132,15 +132,11 @@ class TestSentimentAnalyzer:
         ]
 
         for text in debug_cases:
-            cleaned = self.analyzer.clean_english_text(text)
-            words = cleaned.split()
-        
-        for text in debug_cases:
             print(f"\nDEBUG for '{text}':")
-            cleaned = self.analyzer.clean_english_text(text)
-            print(f"  Cleaned: '{cleaned}'")
-            words = cleaned.split()
-            print(f"  Words: {words}")
+        cleaned = self.analyzer.clean_english_text(text)
+        print(f"  Cleaned: '{cleaned}'")
+        words = cleaned.split()
+        print(f"  Words: {words}")
         
         for i, w in enumerate(words):
             if w in self.analyzer.positive_words:
