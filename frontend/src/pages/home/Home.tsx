@@ -12,6 +12,13 @@ const Home = () => {
   const [showRawJson, setShowRawJson] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
+  /**
+   * Submit handler for when user clicks "Analyze Sentiment" button
+   * and sends request to API
+   * 
+   * @param e event and form data
+   * @returns void, but updates state based on API response
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -35,6 +42,11 @@ const Home = () => {
     }
   };
 
+  /**
+   * Little helper to copy raw JSON to clipboard
+   * 
+   * @returns void, but updates state
+   */
   const handleCopyToClipboard = async () => {
     if (!result) return;
 
