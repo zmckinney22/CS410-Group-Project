@@ -10,17 +10,20 @@ router = APIRouter(prefix="/api")
 # --- Models ---
 
 class SentimentGroup(BaseModel):
+    """Represents count and proportion of comments for each sentiment label"""
     label: str
     count: int
     proportion: float
 
 class NotableComment(BaseModel):
+    """Top-scored comment from each sentiment category with preview snippet"""
     comment_id: str
     snippet: str
     sentiment: str
     score: int
 
 class AnalysisResult(BaseModel):
+    """Complete sentiment analysis result for a Reddit post"""
     post_title: str
     overall_sentiment: str
     groups: list[SentimentGroup]
@@ -29,16 +32,25 @@ class AnalysisResult(BaseModel):
     notable_comments: list[NotableComment]
 
 class AnalyzeRequest(BaseModel):
+    """Request body containing Reddit post URL to analyze"""
     url: str
 
 # --- Endpoints ---
 
 @router.get("/health")
 def health():
+    """Health check endpoint to verify API is running"""
     return {"status": "ok"}
 
 @router.post("/analyze", response_model=AnalysisResult)
 def analyze(req: AnalyzeRequest):
+    """
+    Main endpoint: Analyze sentiment of a Reddit post and its comments
+    
+    Takes a Reddit URL, fetches post and comments, performs sentiment analysis,
+    and returns overall sentiment, distribution, controversy score, keywords,
+    and notable comments from each sentiment category.
+    """
     # Example analyze:
     # Response:
     # {
@@ -54,14 +66,14 @@ def analyze(req: AnalyzeRequest):
     #     "notable_comments": [...]
     # }
 
-    # get text data
+    # Fetch post and comments from Reddit API
     try:
         # {"post": post, "comments": comments}
         data = reddit.fetch_post_and_comments(req.url)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Reddit fetch failed: {e}")
 
-    # process text
+    # Run sentiment analysis on fetched data
     try:
         result = sentiment.analyze_post_and_comments(data)
     except Exception as e:

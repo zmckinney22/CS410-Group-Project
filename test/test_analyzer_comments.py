@@ -7,8 +7,20 @@ sys.path.append(str(Path(__file__).parent.parent))
 from backend.sentiment import SentimentAnalyzer
 
 def load_reddit_data(comments_file, posts_file):
+    """
+    Load Reddit comments with subreddit context for sentiment evaluation.
+    
+    Args:
+        comments_file: CSV with columns: comment_id, text, manual_label, post_id
+        posts_file: CSV with columns: post_id, subreddit
+    
+    Returns:
+        list[dict]: Examples with text, label (positive/negative/neutral/mixed), 
+        and subreddit info. Invalid entries are filtered out.
+    """
     post_to_subreddit = {}
     with open(posts_file, 'r', encoding='utf-8') as f:
+        # Auto-detect delimiter (tab or comma)
         first_line = f.readline()
         f.seek(0)
         delimiter = '\t' if '\t' in first_line else ','
@@ -18,6 +30,7 @@ def load_reddit_data(comments_file, posts_file):
     
     examples = []
     with open(comments_file, 'r', encoding='utf-8') as f:
+        # Auto-detect delimiter
         first_line = f.readline()
         f.seek(0)
         delimiter = '\t' if '\t' in first_line else ','
@@ -27,6 +40,7 @@ def load_reddit_data(comments_file, posts_file):
             text = row.get('text', '').strip()
             label = row.get('manual_label', '').strip().lower()
             
+            # Filter out invalid entries: empty text or invalid labels
             if not text or label not in ['positive', 'negative', 'neutral', 'mixed']:
                 continue
             
@@ -42,6 +56,17 @@ def load_reddit_data(comments_file, posts_file):
 
 
 def evaluate_dataset(examples, params, use_subreddit=False):
+    """
+    Evaluate sentiment analyzer on labeled data.
+    
+    Args:
+        examples: List of dicts with 'text' and 'label' keys
+        params: SentimentAnalyzer configuration parameters
+        use_subreddit: If True, cache subreddit-specific analyzers for context-aware analysis
+    
+    Returns:
+        dict: accuracy, per-class metrics (precision/recall/F1), and pos_neg_f1
+    """
     analyzer_cache = {}
     default_analyzer = SentimentAnalyzer(**params)
     
@@ -55,6 +80,7 @@ def evaluate_dataset(examples, params, use_subreddit=False):
     for item in examples:
         subreddit = item.get('subreddit')
         
+        # Use subreddit-specific analyzer if enabled and available
         if use_subreddit and subreddit:
             if subreddit not in analyzer_cache:
                 analyzer_cache[subreddit] = SentimentAnalyzer(subreddit=subreddit, **params)
@@ -62,8 +88,10 @@ def evaluate_dataset(examples, params, use_subreddit=False):
         else:
             predicted = default_analyzer.analyze_sentiment(item['text']).value
         
+        # Update confusion matrix: confusion[true_label][predicted_label]
         confusion[item['label']][predicted] += 1
     
+    # Overall accuracy
     total = len(examples)
     correct = sum(confusion[label][label] for label in confusion)
     accuracy = correct / total
@@ -71,26 +99,44 @@ def evaluate_dataset(examples, params, use_subreddit=False):
     metrics = {'accuracy': accuracy, 'classes': {}}
     
     for label in ['positive', 'negative', 'neutral', 'mixed']:
+        # True Positives
         tp = confusion[label][label]
+        # False Positives
         fp = sum(confusion[other][label] for other in confusion if other != label)
+        # False Negatives
         fn = sum(confusion[label][other] for other in confusion[label] if other != label)
         
+        # Precision
         p = tp / (tp + fp) if (tp + fp) > 0 else 0
+        # Recall
         r = tp / (tp + fn) if (tp + fn) > 0 else 0
+        # F1
         f1 = 2 * (p * r) / (p + r) if (p + r) > 0 else 0
         
         metrics['classes'][label] = {'precision': p, 'recall': r, 'f1': f1}
     
+    # Metric for binary sentiment tasks
     metrics['pos_neg_f1'] = (metrics['classes']['positive']['f1'] + metrics['classes']['negative']['f1']) / 2
     return metrics
 
 
 def evaluate_sst2(sst2_file, params):
+    """
+    Evaluate on SST-2 (Stanford Sentiment Treebank) benchmark.
+    
+    Args:
+        sst2_file: Path to TSV file (format: text\tlabel, where label is 0/1)
+        params: SentimentAnalyzer configuration
+    
+    Returns:
+        dict: Evaluation metrics (same format as evaluate_dataset)
+    """
     examples = []
     with open(sst2_file, 'r', encoding='utf-8') as f:
         for line in f:
             parts = line.strip().split('\t')
             if len(parts) == 2:
+                # Convert binary labels (0/1) to sentiment labels
                 examples.append({
                     'text': parts[0],
                     'label': 'positive' if parts[1] == '1' else 'negative'
@@ -100,12 +146,26 @@ def evaluate_sst2(sst2_file, params):
 
 
 def evaluate_sentiment140(sent140_file, params, sample_size=10000):
+    """
+    Evaluate on Sentiment140 Twitter dataset (1.6M tweets, randomly sampled).
+    
+    Args:
+        sent140_file: Path to Sentiment140 CSV file
+        params: SentimentAnalyzer configuration
+        sample_size: Number of examples to sample (default: 10000, None for all)
+    
+    Returns:
+        dict: Evaluation metrics (same format as evaluate_dataset)
+    
+    Note: Polarity encoding: 0=negative, 4=positive. Uses latin-1 encoding.
+    """
     examples = []
     with open(sent140_file, 'r', encoding='latin-1', errors='ignore') as f:
         reader = csv.reader(f)
         for row in reader:
             if len(row) >= 6:
                 polarity = row[0]
+                # Filter for labeled tweets (0=negative, 4=positive)
                 if polarity in ['0', '4']:
                     examples.append({
                         'text': row[5],
