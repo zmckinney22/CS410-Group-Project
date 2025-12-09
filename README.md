@@ -44,6 +44,10 @@ REDDIT_USER_AGENT = "YourAppName/1.0"  # Use your app name
 ### Running the Frontend Locally
 
 To run the web application frontend on your local machine (connects to our hosted backend):
+ - Install Node.js from: https://nodejs.org/en
+ - Refresh terminal and editor
+ - Run the terminal commands below
+ - If "npm install" doesn't work, enable scripts for your user
 ```bash
 cd frontend
 npm install
