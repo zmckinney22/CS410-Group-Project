@@ -87,22 +87,25 @@ def download_sst2():
         print("\nWARNING: Some files failed to download")
         return False
 
-def download_sentiment140():
+def download_sentiment140(confirmation_required=True):
     """
     Download Sentiment140 dataset (1.6M tweets with sentiment labels)
     Large dataset used for Twitter/social media sentiment analysis
-    Requires user confirmation before downloading due to size
+
+    Args:
+        confirmation_required: Whether to ask for user confirmation before download
     """
     print("\n" + "="*70)
     print("DOWNLOADING SENTIMENT140 DATASET")
     print("="*70)
     print("WARNING: This is a large file (~80MB, 1.6M tweets)")
-    
-    # Confirm download due to large file size
-    response = input("Do you want to download it? (y/n): ")
-    if response.lower() != 'y':
-        print("Skipped Sentiment140 download")
-        return False
+
+    # Confirm download due to large file size (if required)
+    if confirmation_required:
+        response = input("Do you want to download it? (y/n): ")
+        if response.lower() != 'y':
+            print("Skipped Sentiment140 download")
+            return False
     
     # Create directory if it doesn't exist
     sent140_dir = DATA_DIR / 'sentiment140'
